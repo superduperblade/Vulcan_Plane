@@ -16,7 +16,14 @@
   `docs/PRECISION.md`. World cell addressing (step 3): global geodetic
   quadtree, `CellId`/`cellOf`/hierarchy/neighbors —
   `docs/decisions/0002-world-cell-addressing.md`.
-- World, Streaming, Rendering, Application layers — not yet implemented. The
+- **World model** — implemented (`vp_world`, step 4): resident-cell sparse
+  trie over `vp::geo::CellId` (ensure/ancestor chain, leaf-only removal),
+  per-cell content slots keyed by `ContentKind` with provenance
+  (determinism) and byte accounting, `residentCellAt` position query,
+  `WorldStats` for the debug overlay. Deliberately policy-free: which
+  cells to load, eviction, async loading, and LOD are streaming concerns
+  (step 7). Decision: `docs/decisions/0003-world-model.md`.
+- Streaming, Rendering, Application layers — not yet implemented. The
   conceptual layering is defined in `agents.md`.
 
 ## Major Components
@@ -28,11 +35,14 @@
 - `src/geospatial/cells.{h,cpp}` — `vp_geo`: world cell addressing, global
   geodetic quadtree (step 3); `src/vma_impl.cpp` hosts the VMA
   implementation (not analyzed by clang-tidy).
+- `src/world/world.{h,cpp}` — `vp_world`: world state (step 4). Resident
+  cells, content slots, provenance, stats.
 - `src/app_windowed.cpp` — `vp_windowed`: GLFW+ImGui shell (from the
   vulkan-dev template).
 - `test/` — unit tests: `test.h` (minimal in-house harness, no external
-  deps), `geo_test.cpp` (12 cases, step 2) and `cells_test.cpp` (14 cases,
-  step 3), CTest target `geo_tests`.
+  deps), `geo_test.cpp` (12 cases, step 2), `cells_test.cpp` (14 cases,
+  step 3), `world_test.cpp` (step 4) — one executable `vp_unit_tests`
+  (CTest `unit_tests`).
 
 ## Data Flow
 
@@ -46,6 +56,12 @@ GPU. Re-anchoring: `convertLocal` between frames (double). See
 Cell addressing (step 3): ECEF → `cellOf(level)` → `CellId` — a derived
 integer index for streaming/LOD/spatial-partitioning decisions only; world
 state identity stays ECEF double. See `docs/decisions/0002`.
+
+World state (step 4): `World::ensureCell`/`removeCell` maintain the
+resident-cell trie; content payloads attach per `ContentKind` with
+provenance; `residentCellAt(ECEF, level)` is the position query the
+runtime uses. Streaming (step 7) will supply the residency policy on top.
+See `docs/decisions/0003`.
 
 ## Performance Characteristics
 

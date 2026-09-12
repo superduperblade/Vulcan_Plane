@@ -46,7 +46,7 @@ CMake). Tasks: `cmake: build`, `cmake: build windowed`, `run: vp_core`
 ```bash
 ./build/vp_core            # container: lavapipe, validation on
 ./build-host/vp_core       # host: real GPU
-./build-host/vp_geo_tests  # or the container's build/vp_geo_tests
+./build-host/vp_unit_tests # all suites (geo, cells, world)
 ./build/vp_windowed        # needs a display
 ```
 
@@ -97,15 +97,18 @@ duplicate docs/ content into long-term memory.
 ## Test Commands
 
 ```bash
-cmake --build build                 # builds vp_geo_tests too (BUILD_TESTS=ON)
+cmake --build build                 # builds vp_unit_tests too (BUILD_TESTS=ON)
 ctest --test-dir build              # run all tests (CTest)
-./build/vp_geo_tests                # run the geo tests directly
-./build/vp_geo_tests --report       # print measured float32 error vs distance
+./build/vp_unit_tests               # run all suites directly
+./build/vp_geo_tests --report       # (legacy name) print float32 error report
 ```
 
 Test framework: a minimal in-house harness (`test/test.h`, no external
-dependencies — tests must run headless/offline). If the project outgrows
-it, replace with doctest/gtest and keep the `VP_TEST`/`VP_CHECK` names.
+dependencies — tests must run headless/offline). One executable per host
+platform: `vp_unit_tests` (CTest name `unit_tests`) spans all modules
+(`geo_test.cpp`, `cells_test.cpp`, `world_test.cpp`; `main()` lives in
+`geo_test.cpp`). If the project outgrows the harness, replace with
+doctest/gtest and keep the `VP_TEST`/`VP_CHECK` names.
 Precision budgets are documented in `docs/PRECISION.md` and enforced by
 `test/geo_test.cpp`.
 

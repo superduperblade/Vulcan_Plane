@@ -6,6 +6,7 @@
 // VMA 3.x is single-header; the implementation lives in src/vma_impl.cpp.
 #include <vk_mem_alloc.h>
 
+#include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -13,6 +14,7 @@
 #include <vector>
 
 #include "geospatial/geo.h"
+#include "world/world.h"
 
 #define CHECK(x)                                                            \
   do {                                                                      \
@@ -293,6 +295,68 @@ int main() {
           "+100 m east -> LLA(%.6f, %.6f, %.3f)\n",
           spawn.latDeg, spawn.lonDeg, spawn.altM, spawnEcef.x, spawnEcef.y,
           spawnEcef.z, east100Lla.latDeg, east100Lla.lonDeg, east100Lla.altM);
+
+  // --- World model (step 4): resident cells around the spawn point ---
+  // Exercises the world-state layer (decision 0003): ensure a
+  // neighborhood, attach placeholder content, query through the resident
+  // trie, account memory, tear down. Real payloads (terrain, biomes)
+  // arrive with their generators in later steps.
+  {
+    using vp::world::CellContent;
+    using vp::world::ContentKind;
+    using vp::world::ContentProvenance;
+
+    // Minimal stand-in payload; provenance is the determinism contract.
+    class ProbeContent final : public CellContent {
+     public:
+      ProbeContent(ContentKind kind, std::uint64_t size)
+          : CellContent(kind, ContentProvenance{1, 1, 0, 42}), size_(size) {}
+      [[nodiscard]] std::uint64_t sizeBytes() const override { return size_; }
+
+     private:
+      std::uint64_t size_;
+    };
+
+    vp::world::World world;
+
+    const vp::geo::CellId center12 = vp::geo::cellOf(spawnEcef, 12);
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        world.ensureCell(vp::geo::neighbor(center12, dx, dy));
+      }
+    }
+    const vp::geo::CellId center14 = vp::geo::cellOf(spawnEcef, 14);
+    world.ensureCell(center14).attachContent(
+        std::make_unique<ProbeContent>(ContentKind::Terrain, 1U << 16));
+    world.find(center12)->attachContent(
+        std::make_unique<ProbeContent>(ContentKind::Biomes, 1U << 12));
+
+    const vp::world::WorldCell* at14 = world.residentCellAt(spawnEcef, 14);
+    const vp::world::WorldCell* at20 = world.residentCellAt(spawnEcef, 20);
+    const vp::world::WorldStats stats = world.stats();
+    fprintf(stderr,
+            "world: %zu resident cells; residentCellAt(spawn,14) = %s, "
+            "(spawn,20) falls back to %s\n",
+            world.residentCount(),
+            at14 != nullptr ? at14->id().str().c_str() : "(none)",
+            at20 != nullptr ? at20->id().str().c_str() : "(none)");
+    fprintf(stderr,
+            "world: content %" PRIu64 " B in %" PRIu64
+            " slots "
+            "(terrain + biomes)\n",
+            stats.contentBytes,
+            stats.contentCountByKind[0] + stats.contentCountByKind[1]);
+
+    // Leaf teardown: the L14 cell's content dies with it; the empty L13
+    // ancestor stays resident (no auto-pruning — decision 0003), so
+    // queries fall back through the resident trie.
+    const bool removed = world.removeCell(center14);
+    const vp::world::WorldCell* fallback = world.residentCellAt(spawnEcef, 14);
+    fprintf(stderr,
+            "world: removed L14 cell (%s); residentCellAt(spawn,14) now %s\n",
+            removed ? "ok" : "FAILED",
+            fallback != nullptr ? fallback->id().str().c_str() : "(none)");
+  }
 
   // --- Cleanup ---
   vkDestroyImageView(device, imageView, nullptr);

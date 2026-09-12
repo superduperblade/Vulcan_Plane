@@ -69,6 +69,31 @@ geodata tiles map 1:1 onto engine cells.
   Web-Mercator tile sets enter through an inverse-Mercator converter at
   the future ingestion boundary (step 9).
 
+## World Model (step 4 — implemented)
+
+The world state layer lives in `src/world/world.{h,cpp}` (library
+`vp_world`, namespace `vp::world`; decision
+[`0003-world-model.md`](decisions/0003-world-model.md)):
+
+- **Resident cells form a sparse trie**: `ensureCell` creates a cell and
+  all missing ancestors (a resident non-root cell always has a resident
+  parent); `removeCell` removes leaves only. Pruning/eviction is streaming
+  policy (step 7), supported via `residentChildCount()`.
+- **Content slots per cell**, keyed by `ContentKind` (Terrain, Biomes,
+  Water, Vegetation, Structures — matching the agents.md hierarchy).
+  Payloads are `CellContent` subclasses carrying `provenance()`
+  (generator id/version, parameter hash, seed — the determinism contract
+  and future cache identity) and `sizeBytes()` (memory accounting for the
+  debug overlay).
+- **`residentCellAt(ECEF, level)`**: the deepest resident cell containing
+  a position at or above a level — the position query streaming and
+  rendering will actually ask.
+- **`WorldStats`**: resident cells by level, content counts by kind,
+  content bytes — the debug overlay's data source from day one.
+- Deliberately out of scope: residency policy, eviction, async loading,
+  LOD selection (step 7), content generation (step 5+). Not thread-safe
+  until streaming defines the synchronization boundary.
+
 ## Terrain Model
 
 Not yet designed. Will consume cells for spatial partitioning (next steps:

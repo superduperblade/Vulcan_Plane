@@ -29,21 +29,33 @@ target_include_directories(vp_geo PUBLIC
 set(VULKAN_INCLUDE_DIR "" CACHE PATH
     "Extra include dir providing vulkan/vulkan.h (empty: system path)")
 
+# World model (step 4): resident-cell trie + typed content slots.
+# Pure CPU; depends on vp_geo for CellId/positions. See
+# docs/decisions/0003-world-model.md.
+add_library(vp_world STATIC src/world/world.cpp)
+target_include_directories(vp_world PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(vp_world PUBLIC vp_geo)
+
 # Core: headless Vulkan runtime (instance, device, VMA, render pass).
 # Runs on lavapipe (software) when no GPU is present.
 add_executable(vp_core src/main.cpp src/vma_impl.cpp)
-target_link_libraries(vp_core PRIVATE VulkanMemoryAllocator vulkan vp_geo)
+target_link_libraries(vp_core PRIVATE VulkanMemoryAllocator vulkan vp_geo
+  vp_world)
 if(VULKAN_INCLUDE_DIR)
   target_include_directories(vp_core PRIVATE ${VULKAN_INCLUDE_DIR})
 endif()
 
 # Unit tests (pure CPU, headless). See test/ and CONVENTIONS.md.
+# One executable spanning modules (geo, cells, world); main() lives in
+# test/geo_test.cpp.
 option(BUILD_TESTS "Build unit tests" ON)
 if(BUILD_TESTS)
   enable_testing()
-  add_executable(vp_geo_tests test/geo_test.cpp test/cells_test.cpp)
-  target_link_libraries(vp_geo_tests PRIVATE vp_geo)
-  add_test(NAME geo_tests COMMAND vp_geo_tests)
+  add_executable(vp_unit_tests test/geo_test.cpp test/cells_test.cpp
+    test/world_test.cpp)
+  target_link_libraries(vp_unit_tests PRIVATE vp_world)
+  add_test(NAME unit_tests COMMAND vp_unit_tests)
 endif()
 
 # Windowed app (GLFW + ImGui debug overlay). Needs a display; build with
