@@ -24,4 +24,4 @@ None recorded.
 ## Next Step
 
 Begin implementation step 1 from the strategy in `agents.md`: core
-application/runtime (window + main loop + basic render target).
+application/runtime (window + main loop + basic Vulkan render target).

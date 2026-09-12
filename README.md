@@ -1,6 +1,6 @@
-# Vulcan_Plane
+# Vulkan_Plane
 
-A long-term project to build an Earth-scale 3D world engine: real-world
+A long-term project to build an Earth-scale 3D world engine on Vulkan: real-world
 geography (terrain, elevation, biomes) as the foundation for a walkable/
 flyable world, with flight-simulator-scale coverage as the eventual target.
 

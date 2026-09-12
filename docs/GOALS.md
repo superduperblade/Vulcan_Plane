@@ -7,7 +7,7 @@ geographic coordinate systems, and a basic world representation.
 
 ## Near-Term
 
-- Core application/runtime (window, main loop, basic render target)
+- Core application/runtime (window, main loop, basic Vulkan render target)
 - Math and geographic coordinate systems
 - Basic world/terrain representation
 - Walkable / flyable player movement
