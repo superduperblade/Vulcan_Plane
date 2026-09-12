@@ -4,6 +4,9 @@ project(Vulkan_plane CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# VS Code (C/C++ extension) IntelliSense.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Reference repos cloned by the docs-search extension (persistent volume).
 set(REF_REPOS /root/.pi/agent/docs-search/repos)
 
