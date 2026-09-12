@@ -51,20 +51,34 @@ duplicate docs/ content into long-term memory.
 - Use `recall` before answering questions about prior sessions or stored
   context.
 
-## Formatting / Linting
+## Code Style
 
-Not defined yet.
+- C++17. Namespaces: `vp::` for engine code (`vp::geo` for the geospatial
+  core). Types are `CamelCase`, functions/variables `camelCase`, constants
+  `kCamelCase`.
+- Formatting/linting: not defined yet (clang-tidy is available in the
+  container; a config is planned).
+
+## Test Commands
+
+```bash
+cmake --build build                 # builds vp_geo_tests too (BUILD_TESTS=ON)
+ctest --test-dir build              # run all tests (CTest)
+./build/vp_geo_tests                # run the geo tests directly
+./build/vp_geo_tests --report       # print measured float32 error vs distance
+```
+
+Test framework: a minimal in-house harness (`test/test.h`, no external
+dependencies — tests must run headless/offline). If the project outgrows
+it, replace with doctest/gtest and keep the `VP_TEST`/`VP_CHECK` names.
+Precision budgets are documented in `docs/PRECISION.md` and enforced by
+`test/geo_test.cpp`.
 
 ## Supported Environments
 
 - This container: Debian bookworm, g++ 12, CMake 3.25, Ninja, lavapipe
-  (llvmpipe) software Vulkan, Khronos validation layer.
+  (llvmpipe) software Vulkan, Khronos validation layer, clang-tidy.
 - Real hardware: X11 display for the windowed app.
-
-## Test Commands
-
-Not defined yet (no test framework chosen; step 2 will introduce unit tests
-for the coordinate systems).
 
 ## Benchmark Commands
 

@@ -13,11 +13,27 @@ set(REF_REPOS /root/.pi/agent/docs-search/repos)
 # VMA (header-only in 3.x: INTERFACE library)
 add_subdirectory(${REF_REPOS}/vma ${CMAKE_BINARY_DIR}/vma EXCLUDE_FROM_ALL)
 
+# Geospatial coordinate core (WGS-84: LLA <-> ECEF, local ENU frames).
+# Pure CPU (glm only, no Vulkan). See docs/decisions/0001 and
+# docs/PRECISION.md.
+add_library(vp_geo STATIC src/geospatial/geo.cpp)
+target_include_directories(vp_geo PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${REF_REPOS}/glm)
+
 # Core: headless Vulkan runtime (instance, device, VMA, render pass).
 # Runs on lavapipe (software) when no GPU is present.
 add_executable(vp_core src/main.cpp)
-target_link_libraries(vp_core PRIVATE VulkanMemoryAllocator vulkan)
-target_include_directories(vp_core PRIVATE ${REF_REPOS}/glm)
+target_link_libraries(vp_core PRIVATE VulkanMemoryAllocator vulkan vp_geo)
+
+# Unit tests (pure CPU, headless). See test/ and CONVENTIONS.md.
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS)
+  enable_testing()
+  add_executable(vp_geo_tests test/geo_test.cpp)
+  target_link_libraries(vp_geo_tests PRIVATE vp_geo)
+  add_test(NAME geo_tests COMMAND vp_geo_tests)
+endif()
 
 # Windowed app (GLFW + ImGui debug overlay). Needs a display; build with
 # -DBUILD_WINDOWED=ON on hardware with X11.

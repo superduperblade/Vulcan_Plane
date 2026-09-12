@@ -8,6 +8,8 @@
 #include <vk_mem_alloc.h>
 #include <glm/glm.hpp>
 
+#include "geospatial/geo.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -251,6 +253,22 @@ int main() {
   CHECK(vkDeviceWaitIdle(device));
   fprintf(stderr, "render pass completed — image cleared to glm::vec4(%.2f, %.2f, %.2f, %.2f)\n",
           clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+
+  // --- Geospatial coordinate core (step 2): LLA -> ECEF -> local ENU ---
+  // Demonstrates the coordinate transforms are usable from the engine build.
+  // The render boundary (float32) conversion is characterized in
+  // docs/PRECISION.md; here everything stays double precision.
+  const vp::geo::LLA spawn{47.3769, 8.5417, 540.0};  // sample spawn point
+  const vp::geo::ECEF spawnEcef = vp::geo::llaToEcef(spawn);
+  const vp::geo::LocalFrame frame(spawnEcef);
+  const vp::geo::ECEF east100 = frame.toWorld(glm::dvec3(100.0, 0.0, 0.0));
+  const vp::geo::LLA east100Lla = vp::geo::ecefToLla(east100);
+  fprintf(stderr,
+          "geo: LLA(%.4f, %.4f, %.1f) -> ECEF(%.3f, %.3f, %.3f); "
+          "+100 m east -> LLA(%.6f, %.6f, %.3f)\n",
+          spawn.latDeg, spawn.lonDeg, spawn.altM, spawnEcef.x, spawnEcef.y,
+          spawnEcef.z, east100Lla.latDeg, east100Lla.lonDeg,
+          east100Lla.altM);
 
   // --- Cleanup ---
   vkDestroyImageView(device, imageView, nullptr);

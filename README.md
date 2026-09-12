@@ -13,6 +13,7 @@ flyable world, with flight-simulator-scale coverage as the eventual target.
   - [STATUS.md](docs/STATUS.md) — current state and next step
   - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — system architecture
   - [WORLD.md](docs/WORLD.md) — world / terrain / coordinate model
+  - [PRECISION.md](docs/PRECISION.md) — coordinate precision contract
   - [PERFORMANCE.md](docs/PERFORMANCE.md) — benchmarks and bottlenecks
   - [CONVENTIONS.md](docs/CONVENTIONS.md) — build / test / style conventions
   - [decisions/](docs/decisions/) — decision records
