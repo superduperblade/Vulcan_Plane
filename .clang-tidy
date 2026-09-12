@@ -1,0 +1,79 @@
+---
+# clang-tidy configuration for Vulkan_plane.
+#
+# Run from a configured build directory (see CONVENTIONS.md):
+#   run-clang-tidy -header-filter='src/.*' -quiet \
+#     'src/main.cpp' 'src/geospatial/geo.cpp' 'src/geospatial/geo.h' \
+#     'test/geo_test.cpp' 'test/test.h'
+# (files listed explicitly; src/vma_impl.cpp is the VMA implementation host
+# and is not analyzed)
+
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -bugprone-reserved-identifier,
+  -bugprone-throwing-static-initialization,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-do-while,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-cstyle-cast,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-type-vararg,
+  -hicpp-avoid-c-arrays,
+  -hicpp-signed-bitwise,
+  -misc-const-correctness,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
+  -modernize-avoid-c-arrays,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-identifier-naming,
+  -readability-isolate-declaration,
+  -readability-magic-numbers,
+  -readability-math-missing-parentheses,
+  -readability-function-cognitive-complexity
+
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/.*'
+
+# Disabled checks are deliberate; the reasoning, so nobody re-enables them
+# blindly:
+#
+# - bugprone-throwing-static-initialization,
+#   cppcoreguidelines-avoid-non-const-global-variables:
+#     the test harness (test/test.h) registers cases through global Registrar
+#     objects by design; that is the whole mechanism.
+# - cppcoreguidelines-avoid-do-while: do-while is the canonical macro-safety
+#     wrapper; VP_CHECK/VP_CHECK_NEAR (test/test.h) rely on it.
+# - cppcoreguidelines-pro-type-vararg, pro-type-union-access,
+#   pro-bounds-array-to-pointer-decay: the harness and the diagnostics use
+#     printf/snprintf/va_list deliberately; these checks only see the macros.
+# - cppcoreguidelines-owning-memory: no gsl::owner usage; raw new/delete is
+#     not part of this codebase's style.
+# - misc-const-correctness: low signal in the macro-heavy test harness;
+#     revisit if real non-test code starts tripping it.
+# - misc-include-cleaner: fights glm/system transitive includes and would
+#     generate large churn; include hygiene is manual (the one real bug it
+#     would have caught, a missing <algorithm> in geo.cpp, is fixed).
+# - misc-use-anonymous-namespace: VP_TEST generates `static void` functions
+#     and main.cpp uses file-local statics; both are fine.
+# - readability-identifier-length, readability-identifier-naming: short math
+#     names (a, b, p, e) are idiomatic in geodesy code; naming is covered by
+#     CONVENTIONS.md instead.
+# - readability-isolate-declaration, readability-math-missing-parentheses:
+#     compact math declarations and standard precedence are intentional.
+# - readability-function-cognitive-complexity: linear Vulkan setup code and
+#     grid-based tests are naturally "complex" but trivially reviewable.

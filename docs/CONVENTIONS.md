@@ -3,14 +3,28 @@
 ## Build
 
 ```bash
-# Headless core (works in this container, lavapipe):
+# Dev container (root, refs in /root/.pi/agent/docs-search/repos):
 cmake --preset default          # or: cmake -S . -B build -G Ninja
 cmake --build build
 
+# Host build (user-owned refs; e.g. this CachyOS machine):
+#   deps cloned to ~/Documents/code/agents/ref_repos/{vma,glm,Vulkan-Headers}
+#   (vma is a symlink to VulkanMemoryAllocator), no system vulkan headers.
+cmake -S . -B build-host -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+  -DREF_REPOS="$HOME/Documents/code/agents/ref_repos" \
+  -DVULKAN_INCLUDE_DIR="$HOME/Documents/code/agents/ref_repos/Vulkan-Headers/include"
+cmake --build build-host
+
 # Windowed app (needs a display / X11):
-cmake --preset windowed         # or: cmake -S . -B build -G Ninja -DBUILD_WINDOWED=ON
-cmake --build build
+cmake --preset windowed         # or add -DBUILD_WINDOWED=ON
 ```
+
+Note (this host): `/usr/bin/cmake` and `/usr/bin/ctest` are broken (stale
+binary, needs libjsoncpp.so.26 which is no longer installed). A working
+cmake 4.x is installed via `pip install --user cmake` (`~/.local/bin/cmake`),
+or call the wheel's binaries directly under
+`~/.local/lib/python3.14/site-packages/cmake/data/bin/`. Ninja and the
+compilers are system-installed and fine.
 
 Or use the `cpp_build` tool (auto-detects CMake+Ninja, saves full logs).
 
@@ -24,11 +38,14 @@ CMake). Tasks: `cmake: build`, `cmake: build windowed`, `run: vp_core`
 ## Run
 
 ```bash
-./build/vp_core            # headless core; runs on lavapipe, validation layer on
+./build/vp_core            # container: lavapipe, validation on
+./build-host/vp_core       # host: real GPU
+./build-host/vp_geo_tests  # or the container's build/vp_geo_tests
 ./build/vp_windowed        # needs a display
 ```
 
-Or use the `vulkan_run` tool (validation layer on by default, surfaces VUIDs).
+Or use the `vulkan_run` tool in the dev container (validation layer on by
+default, surfaces VUIDs).
 
 ## Reference Repos
 
@@ -56,8 +73,20 @@ duplicate docs/ content into long-term memory.
 - C++17. Namespaces: `vp::` for engine code (`vp::geo` for the geospatial
   core). Types are `CamelCase`, functions/variables `camelCase`, constants
   `kCamelCase`.
-- Formatting/linting: not defined yet (clang-tidy is available in the
-  container; a config is planned).
+- Formatting: `clang-format` with `.clang-format` (Google style).
+  Check: `clang-format --dry-run -Werror <files>`; apply with `-i`.
+- Static analysis: `clang-tidy` with `.clang-tidy`. Run from a configured
+  build dir (uses `compile_commands.json`):
+
+  ```bash
+  run-clang-tidy -header-filter='src/.*' -quiet \
+    'src/main.cpp' 'src/geospatial/geo.cpp' 'src/geospatial/geo.h' \
+    'test/geo_test.cpp' 'test/test.h'
+  ```
+
+  `src/vma_impl.cpp` (VMA implementation host) is not analyzed. Disabled
+  checks are deliberate — each disable carries its reasoning in
+  `.clang-tidy`; do not re-enable them without reading it.
 
 ## Test Commands
 
@@ -76,9 +105,15 @@ Precision budgets are documented in `docs/PRECISION.md` and enforced by
 
 ## Supported Environments
 
-- This container: Debian bookworm, g++ 12, CMake 3.25, Ninja, lavapipe
-  (llvmpipe) software Vulkan, Khronos validation layer, clang-tidy.
-- Real hardware: X11 display for the windowed app.
+- Dev container: Debian bookworm, g++ 12, CMake 3.25, Ninja, lavapipe
+  (llvmpipe) software Vulkan, Khronos validation layer, clang-tidy. Refs at
+  `/root/.pi/agent/docs-search/repos`.
+- Host (this machine): CachyOS, user `soul`, g++ (current), clang/clang-tidy
+  (current), Ninja, NVIDIA RTX 4060 (real GPU — `vp_core` runs on it;
+  validation layer currently NOT installed, instance reports it off). Refs at
+  `~/Documents/code/agents/ref_repos` (see Build). NOTE: project files must
+  be owned by `soul` (a chown pass was needed after the container era).
+
 
 ## Benchmark Commands
 

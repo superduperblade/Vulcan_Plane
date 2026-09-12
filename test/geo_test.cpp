@@ -15,11 +15,11 @@
 
 #include "geospatial/geo.h"
 
-#include "test.h"
-
 #include <cmath>
 #include <cstdio>
 #include <random>
+
+#include "test.h"
 
 using namespace vp::geo;
 
@@ -28,12 +28,14 @@ namespace {
 // Round-trip budgets (docs/PRECISION.md).
 const double kLatTolDeg = 1e-8;  // ~1.1 mm
 const double kLonTolDeg = 1e-8;
-const double kAltTolM = 1e-3;    // 1 mm
+const double kAltTolM = 1e-3;  // 1 mm
 
 // Wrap-aware longitude difference in degrees, in [0, 180].
 double lonDiffDeg(double a, double b) {
   double d = std::fmod(a - b + 180.0, 360.0);
-  if (d < 0.0) d += 360.0;
+  if (d < 0.0) {
+    d += 360.0;
+  }
   return std::fabs(d - 180.0);
 }
 
@@ -44,8 +46,9 @@ void checkLlaRoundTrip(const LLA& in) {
            std::isfinite(out.altM));
   VP_CHECK_NEAR(out.latDeg, in.latDeg, kLatTolDeg);
   // Longitude is undefined at the exact poles; skip it there.
-  if (std::fabs(in.latDeg) < 90.0)
+  if (std::fabs(in.latDeg) < 90.0) {
     VP_CHECK_NEAR(lonDiffDeg(out.lonDeg, in.lonDeg), 0.0, kLonTolDeg);
+  }
   VP_CHECK_NEAR(out.altM, in.altM, kAltTolM);
 }
 
@@ -107,28 +110,36 @@ VP_TEST(lla_ecef_symmetry) {
 }
 
 VP_TEST(lla_roundtrip_grid) {
-  const double lats[] = {-90.0, -89.9, -60.0, -45.0, -23.4365, 0.0, 23.4365,
-                         45.0, 60.0, 89.9, 90.0};
-  const double lons[] = {-180.0, -179.999, -120.0, -45.0, 0.0, 45.0, 120.0,
-                         179.999, 180.0};
-  const double alts[] = {-5000.0, -1000.0, 0.0, 100.0, 8848.0, 100000.0,
-                         1000000.0};
-  for (double lat : lats)
-    for (double lon : lons)
-      for (double alt : alts) checkLlaRoundTrip({lat, lon, alt});
+  const double lats[] = {-90.0,   -89.9, -60.0, -45.0, -23.4365, 0.0,
+                         23.4365, 45.0,  60.0,  89.9,  90.0};
+  const double lons[] = {-180.0, -179.999, -120.0,  -45.0, 0.0,
+                         45.0,   120.0,    179.999, 180.0};
+  const double alts[] = {-5000.0, -1000.0,  0.0,      100.0,
+                         8848.0,  100000.0, 1000000.0};
+  for (double lat : lats) {
+    for (double lon : lons) {
+      for (double alt : alts) {
+        checkLlaRoundTrip({lat, lon, alt});
+      }
+    }
+  }
 }
 
 VP_TEST(lla_roundtrip_random) {
+  // A fixed seed is intentional: the generated grid must be deterministic
+  // so failures reproduce exactly (agents.md).
+  // NOLINTNEXTLINE(bugprone-random-generator-seed)
   std::mt19937 rng(12345);
   std::uniform_real_distribution<double> lat(-90.0, 90.0);
   std::uniform_real_distribution<double> lon(-180.0, 180.0);
   std::uniform_real_distribution<double> alt(-5000.0, 2000000.0);
-  for (int i = 0; i < 10000; ++i)
+  for (int i = 0; i < 10000; ++i) {
     checkLlaRoundTrip({lat(rng), lon(rng), alt(rng)});
+  }
 }
 
 VP_TEST(poles) {
-  for (double alt : {0.0, 1000.0, -1000.0, 1000000.0})
+  for (double alt : {0.0, 1000.0, -1000.0, 1000000.0}) {
     for (int sign : {1, -1}) {
       const LLA in{sign * 90.0, 0.0, alt};
       const ECEF e = llaToEcef(in);
@@ -139,6 +150,7 @@ VP_TEST(poles) {
       VP_CHECK_NEAR(out.latDeg, sign * 90.0, 1e-12);
       VP_CHECK_NEAR(out.altM, alt, kAltTolM);
     }
+  }
   // Just off the axis, near the pole.
   checkLlaRoundTrip({89.999999, 45.0, 0.0});
   checkLlaRoundTrip({-89.999999, -45.0, 100.0});
@@ -164,20 +176,24 @@ VP_TEST(altitude_extremes) {
   // and far above it. Note: geodetic representation is unique for
   // h > ~-6.34e6 m (the Jacobian fold); far-deeper interior points have
   // multiple (lat, h) solutions and are outside the engine's domain.
-  const double alts[] = {-20000.0, -10000.0, -1000.0, 0.0, 1000.0, 42164.0,
-                         1000000.0, 40000000.0};
+  const double alts[] = {-20000.0, -10000.0, -1000.0,   0.0,
+                         1000.0,   42164.0,  1000000.0, 40000000.0};
   const double lats[] = {0.0, 45.0, -60.0};
   const double lons[] = {0.0, 90.0, -120.0};
-  for (double alt : alts)
-    for (double lat : lats)
-      for (double lon : lons) checkLlaRoundTrip({lat, lon, alt});
+  for (double alt : alts) {
+    for (double lat : lats) {
+      for (double lon : lons) {
+        checkLlaRoundTrip({lat, lon, alt});
+      }
+    }
+  }
 }
 
 VP_TEST(local_frame_roundtrip) {
   const LLA origins[] = {
       {0.0, 0.0, 0.0},          {45.0, 10.0, 100.0},
-      {-33.8688, 151.2093, 58}, {90.0, 0.0, 0.0},   // north pole
-      {-90.0, 0.0, 0.0},        {0.0, 180.0, 1000}, // dateline
+      {-33.8688, 151.2093, 58}, {90.0, 0.0, 0.0},    // north pole
+      {-90.0, 0.0, 0.0},        {0.0, 180.0, 1000},  // dateline
   };
   for (const auto& o : origins) {
     const LocalFrame f(llaToEcef(o));
@@ -185,16 +201,21 @@ VP_TEST(local_frame_roundtrip) {
     VP_CHECK(glm::length(f.toLocal(f.origin())) < 1e-9);
     // Basis is orthonormal.
     const glm::dmat3 I = f.basis() * glm::transpose(f.basis());
-    for (int r = 0; r < 3; ++r)
-      for (int c = 0; c < 3; ++c)
+    for (int r = 0; r < 3; ++r) {
+      for (int c = 0; c < 3; ++c) {
+        // r and c index a fixed 3x3 matrix and are always in range.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
         VP_CHECK_NEAR(I[r][c], r == c ? 1.0 : 0.0, 1e-12);
+      }
+    }
     // toWorld/toLocal round-trip at increasing distances.
-    for (double d : {1.0, 100.0, 1e3, 1e5, 1e6})
+    for (double d : {1.0, 100.0, 1e3, 1e5, 1e6}) {
       for (const auto& dir : kDirs) {
         const glm::dvec3 local = dir * d;
         const ECEF w = f.toWorld(local);
         VP_CHECK(glm::length(f.toLocal(w) - local) < 1e-9 * d);
       }
+    }
   }
 }
 
@@ -239,8 +260,9 @@ VP_TEST(float32_error_bound) {
       worst = std::max(worst, glm::length(trueW - backW));
     }
     const double bound = 6e-8 * d + 1e-7;
-    std::fprintf(stderr, "  float32 bound check: d=%8.0f m -> worst %.3e m "
-                         "(bound %.3e m)\n",
+    std::fprintf(stderr,
+                 "  float32 bound check: d=%8.0f m -> worst %.3e m "
+                 "(bound %.3e m)\n",
                  d, worst, bound);
     VP_CHECK(worst < bound);
   }
@@ -248,10 +270,10 @@ VP_TEST(float32_error_bound) {
 
 VP_TEST(reanchor_frame_conversion) {
   // convertLocal between frames ~500 km apart stays at double precision.
-  const LocalFrame a(llaToEcef({47.3769, 8.5417, 540.0}));   // Zurich-ish
-  const LocalFrame b(llaToEcef({48.8566, 2.3522, 35.0}));    // Paris-ish
+  const LocalFrame a(llaToEcef({47.3769, 8.5417, 540.0}));  // Zurich-ish
+  const LocalFrame b(llaToEcef({48.8566, 2.3522, 35.0}));   // Paris-ish
   VP_CHECK(distanceEcef(a.origin(), b.origin()) > 4e5);
-  for (double d : {1.0, 1e3, 1e5})
+  for (double d : {1.0, 1e3, 1e5}) {
     for (const auto& dir : kDirs) {
       const glm::dvec3 la = dir * d;
       const ECEF w = a.toWorld(la);
@@ -260,6 +282,7 @@ VP_TEST(reanchor_frame_conversion) {
       // The point's distance from the new origin is preserved.
       VP_CHECK_NEAR(glm::length(lb), distanceEcef(w, b.origin()), 1e-6);
     }
+  }
 }
 
 VP_TEST(ecef_center_degenerate) {
@@ -272,7 +295,7 @@ VP_TEST(ecef_center_degenerate) {
 }
 
 // --report: measure float32 error across distances (for docs/PRECISION.md).
-void reportFloat32() {
+static void reportFloat32() {
   const LocalFrame f(llaToEcef({47.3769, 8.5417, 540.0}));
   std::fprintf(stderr, "float32 local-space error vs distance from origin:\n");
   for (double d : {1.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6, 1e7}) {
@@ -295,10 +318,11 @@ int main(int argc, char** argv) {
   }
   const int failures = vpt::runAll();
   const int total = static_cast<int>(vpt::cases().size());
-  if (failures == 0)
+  if (failures == 0) {
     std::fprintf(stderr, "OK: %d test cases, 0 failures\n", total);
-  else
+  } else {
     std::fprintf(stderr, "FAILED: %d failed checks in %d test cases\n",
                  failures, total);
+  }
   return failures == 0 ? 0 : 1;
 }

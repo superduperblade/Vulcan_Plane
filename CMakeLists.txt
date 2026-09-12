@@ -7,8 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # VS Code (C/C++ extension) IntelliSense.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Reference repos cloned by the docs-search extension (persistent volume).
-set(REF_REPOS /root/.pi/agent/docs-search/repos)
+# Reference repos (VMA, glm, ...). Default: docs-search extension volume in
+# the dev container. On a host build, override with -DREF_REPOS=<dir>
+# containing vma/ and glm/ checkouts (see CONVENTIONS.md).
+set(REF_REPOS "/root/.pi/agent/docs-search/repos" CACHE PATH
+    "Directory containing reference repo checkouts (vma/, glm/)")
 
 # VMA (header-only in 3.x: INTERFACE library)
 add_subdirectory(${REF_REPOS}/vma ${CMAKE_BINARY_DIR}/vma EXCLUDE_FROM_ALL)
@@ -21,10 +24,19 @@ target_include_directories(vp_geo PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${REF_REPOS}/glm)
 
+# Vulkan headers live on the system include path in the dev container; on a
+# host without the vulkan-headers package, point this at a Vulkan-Headers
+# checkout's include/ directory.
+set(VULKAN_INCLUDE_DIR "" CACHE PATH
+    "Extra include dir providing vulkan/vulkan.h (empty: system path)")
+
 # Core: headless Vulkan runtime (instance, device, VMA, render pass).
 # Runs on lavapipe (software) when no GPU is present.
-add_executable(vp_core src/main.cpp)
+add_executable(vp_core src/main.cpp src/vma_impl.cpp)
 target_link_libraries(vp_core PRIVATE VulkanMemoryAllocator vulkan vp_geo)
+if(VULKAN_INCLUDE_DIR)
+  target_include_directories(vp_core PRIVATE ${VULKAN_INCLUDE_DIR})
+endif()
 
 # Unit tests (pure CPU, headless). See test/ and CONVENTIONS.md.
 option(BUILD_TESTS "Build unit tests" ON)

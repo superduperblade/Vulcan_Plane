@@ -3,49 +3,60 @@
 // Runs on lavapipe (software) when no GPU. This is the foundation the rest of
 // the engine builds on; it will grow into the main loop, world systems, etc.
 #include <vulkan/vulkan.h>
-// VMA 3.x is single-header: pull the implementation into this one TU.
-#define VMA_IMPLEMENTATION
+// VMA 3.x is single-header; the implementation lives in src/vma_impl.cpp.
 #include <vk_mem_alloc.h>
-#include <glm/glm.hpp>
-
-#include "geospatial/geo.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <glm/glm.hpp>
 #include <vector>
 
-#define CHECK(x)                                               \
-  do {                                                         \
-    VkResult _r = (x);                                         \
-    if (_r != VK_SUCCESS) {                                    \
-      fprintf(stderr, "Vulkan error %d at %s:%d (%s)\n",       \
-              (int)_r, __FILE__, __LINE__, #x);                \
-      exit(1);                                                 \
-    }                                                          \
+#include "geospatial/geo.h"
+
+#define CHECK(x)                                                            \
+  do {                                                                      \
+    VkResult _r = (x);                                                      \
+    if (_r != VK_SUCCESS) {                                                 \
+      fprintf(stderr, "Vulkan error %d at %s:%d (%s)\n", (int)_r, __FILE__, \
+              __LINE__, #x);                                                \
+      exit(1);                                                              \
+    }                                                                       \
   } while (0)
 
+// Parameter order and types are fixed by the Vulkan VkAllocationCallbacks
+// vtable, so the allocator callbacks cannot be reordered or merged.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 static void* vkAlloc(void* /*pUserData*/, size_t size, size_t alignment,
                      VkSystemAllocationScope /*allocationScope*/) {
   size_t a = alignment > 8 ? alignment : 8;
   return aligned_alloc(a, (size + a - 1) / a * a);
 }
-static void* vkRealloc(void* /*pUserData*/, void* /*pOriginal*/, size_t size, size_t alignment,
+static void* vkRealloc(void* /*pUserData*/, void* /*pOriginal*/, size_t size,
+                       size_t alignment,
                        VkSystemAllocationScope /*allocationScope*/) {
   // Demo: fresh allocation (VMA does not use realloc in practice).
   return vkAlloc(nullptr, size, alignment, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 }
-static void vkFree(void* /*pUserData*/, void* p) { free(p); }
+static void vkFree(void* /*pUserData*/, void* p) {
+  // Deliberate: the Vulkan allocator vtable requires a free callback.
+  free(p);  // NOLINT(cppcoreguidelines-no-malloc)
+}
 
 int main() {
   // --- Instance (with validation layer if available) ---
   uint32_t layerCount = 0;
   vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
   std::vector<VkLayerProperties> layers(layerCount);
-  if (layerCount) vkEnumerateInstanceLayerProperties(&layerCount, layers.data());
+  if (layerCount != 0) {
+    vkEnumerateInstanceLayerProperties(&layerCount, layers.data());
+  }
   bool hasValidation = false;
-  for (auto& l : layers)
-    if (strcmp(l.layerName, "VK_LAYER_KHRONOS_validation") == 0) hasValidation = true;
+  for (auto& l : layers) {
+    if (strcmp(l.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
+      hasValidation = true;
+    }
+  }
 
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -63,9 +74,10 @@ int main() {
     ici.enabledLayerCount = 1;
     ici.ppEnabledLayerNames = &kValidationLayer;
   }
-  VkInstance instance;
+  VkInstance instance = VK_NULL_HANDLE;
   CHECK(vkCreateInstance(&ici, nullptr, &instance));
-  fprintf(stderr, "instance created (validation layer: %s)\n", hasValidation ? "on" : "off");
+  fprintf(stderr, "instance created (validation layer: %s)\n",
+          hasValidation ? "on" : "off");
 
   // --- Physical device with a graphics queue ---
   uint32_t devCount = 0;
@@ -75,29 +87,32 @@ int main() {
 
   VkPhysicalDevice phys = VK_NULL_HANDLE;
   uint32_t qfam = 0;
-  for (auto d : devices) {
+  for (auto* d : devices) {
     uint32_t n = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(d, &n, nullptr);
     std::vector<VkQueueFamilyProperties> qf(n);
     vkGetPhysicalDeviceQueueFamilyProperties(d, &n, qf.data());
-    for (uint32_t i = 0; i < n && !phys; i++) {
-      if (qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+    for (uint32_t i = 0; i < n && phys != VK_NULL_HANDLE; i++) {
+      // i is bounded by the driver-reported queue family count n.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
+      if ((qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
         phys = d;
         qfam = i;
       }
     }
   }
-  if (!phys) {
+  if (phys == VK_NULL_HANDLE) {
     fprintf(stderr, "no device with a graphics queue\n");
     return 1;
   }
   char name[256] = {0};
   VkPhysicalDeviceProperties props{};
   vkGetPhysicalDeviceProperties(phys, &props);
-  fprintf(stderr, "physical device: %s (queue family %u)\n", props.deviceName, qfam);
+  fprintf(stderr, "physical device: %s (queue family %u)\n", props.deviceName,
+          qfam);
 
   // --- Logical device ---
-  float priority = 1.0f;
+  float priority = 1.0F;
   VkDeviceQueueCreateInfo qc{};
   qc.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
   qc.queueFamilyIndex = qfam;
@@ -107,23 +122,23 @@ int main() {
   dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   dci.queueCreateInfoCount = 1;
   dci.pQueueCreateInfos = &qc;
-  VkDevice device;
+  VkDevice device = VK_NULL_HANDLE;
   CHECK(vkCreateDevice(phys, &dci, nullptr, &device));
-  VkQueue queue;
+  VkQueue queue = VK_NULL_HANDLE;
   vkGetDeviceQueue(device, qfam, 0, &queue);
 
   // --- Command pool + command buffer ---
   VkCommandPoolCreateInfo cpci{};
   cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   cpci.queueFamilyIndex = qfam;
-  VkCommandPool cmdPool;
+  VkCommandPool cmdPool = VK_NULL_HANDLE;
   CHECK(vkCreateCommandPool(device, &cpci, nullptr, &cmdPool));
   VkCommandBufferAllocateInfo cba{};
   cba.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   cba.commandPool = cmdPool;
   cba.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   cba.commandBufferCount = 1;
-  VkCommandBuffer cmd;
+  VkCommandBuffer cmd = VK_NULL_HANDLE;
   CHECK(vkAllocateCommandBuffers(device, &cba, &cmd));
 
   // --- VMA allocator ---
@@ -137,7 +152,7 @@ int main() {
   vci.physicalDevice = phys;
   vci.device = device;
   vci.pAllocationCallbacks = &cb;
-  VmaAllocator vma;
+  VmaAllocator vma = VK_NULL_HANDLE;
   if (vmaCreateAllocator(&vci, &vma) != VK_SUCCESS) {
     fprintf(stderr, "vmaCreateAllocator failed\n");
     return 1;
@@ -145,27 +160,33 @@ int main() {
   fprintf(stderr, "VMA allocator created\n");
 
   // --- Image via VMA ---
+  // Vulkan structs are zero-initialized idiomatically; samples gets a valid
+  // value before the struct is used.
+  // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
   VkImageCreateInfo imageInfo{};
   imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
   imageInfo.imageType = VK_IMAGE_TYPE_2D;
   imageInfo.extent = {256, 256, 1};
   imageInfo.mipLevels = 1;
   imageInfo.arrayLayers = 1;
   imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
   imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-  imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  imageInfo.usage =
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
   imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
   imageInfo.queueFamilyIndexCount = 1;
   imageInfo.pQueueFamilyIndices = &qfam;
 
   VmaAllocationCreateInfo allocInfo{};
   allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-  VkImage image;
-  VmaAllocation allocation;
+  VkImage image = VK_NULL_HANDLE;
+  VmaAllocation allocation = VK_NULL_HANDLE;
   VmaAllocationInfo allocResult;
-  CHECK(vmaCreateImage(vma, &imageInfo, &allocInfo, &image, &allocation, &allocResult));
-  fprintf(stderr, "image 256x256 allocated (memory type %u)\n", allocResult.memoryType);
+  CHECK(vmaCreateImage(vma, &imageInfo, &allocInfo, &image, &allocation,
+                       &allocResult));
+  fprintf(stderr, "image 256x256 allocated (memory type %u)\n",
+          allocResult.memoryType);
 
   // Framebuffer attachments are VkImageView in the 1.4-style headers.
   VkImageViewCreateInfo ivci{};
@@ -174,7 +195,7 @@ int main() {
   ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
   ivci.format = VK_FORMAT_R8G8B8A8_UNORM;
   ivci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  VkImageView imageView;
+  VkImageView imageView = VK_NULL_HANDLE;
   CHECK(vkCreateImageView(device, &ivci, nullptr, &imageView));
 
   // --- Layout transition: UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL ---
@@ -190,9 +211,11 @@ int main() {
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
   // --- Render pass (clear only, final layout SHADER_READ_ONLY) ---
+  // Same zero-init idiom; samples set immediately below.
+  // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
   VkAttachmentDescription att{};
-  att.format = VK_FORMAT_R8G8B8A8_UNORM;
   att.samples = VK_SAMPLE_COUNT_1_BIT;
+  att.format = VK_FORMAT_R8G8B8A8_UNORM;
   att.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   att.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -210,7 +233,7 @@ int main() {
   rpci.pAttachments = &att;
   rpci.subpassCount = 1;
   rpci.pSubpasses = &subpass;
-  VkRenderPass rp;
+  VkRenderPass rp = VK_NULL_HANDLE;
   CHECK(vkCreateRenderPass(device, &rpci, nullptr, &rp));
 
   VkFramebufferCreateInfo fbi{};
@@ -221,11 +244,11 @@ int main() {
   fbi.layers = 1;
   fbi.attachmentCount = 1;
   fbi.pAttachments = &imageView;
-  VkFramebuffer fb;
+  VkFramebuffer fb = VK_NULL_HANDLE;
   CHECK(vkCreateFramebuffer(device, &fbi, nullptr, &fb));
 
   // --- Record + submit: clear the image with a glm color ---
-  glm::vec4 clearColor(0.15f, 0.40f, 0.75f, 1.0f);
+  glm::vec4 clearColor(0.15F, 0.40F, 0.75F, 1.0F);
   VkClearValue cv;
   memcpy(cv.color.float32, &clearColor, sizeof(float) * 4);
   VkRenderPassBeginInfo rpbi{};
@@ -239,8 +262,8 @@ int main() {
   cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   CHECK(vkBeginCommandBuffer(cmd, &cbbi));
   vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
+                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                       nullptr, 0, nullptr, 1, &barrier);
   vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
   vkCmdEndRenderPass(cmd);
   CHECK(vkEndCommandBuffer(cmd));
@@ -251,7 +274,9 @@ int main() {
   si.pCommandBuffers = &cmd;
   CHECK(vkQueueSubmit(queue, 1, &si, VK_NULL_HANDLE));
   CHECK(vkDeviceWaitIdle(device));
-  fprintf(stderr, "render pass completed — image cleared to glm::vec4(%.2f, %.2f, %.2f, %.2f)\n",
+  fprintf(stderr,
+          "render pass completed — image cleared to glm::vec4(%.2f, %.2f, "
+          "%.2f, %.2f)\n",
           clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 
   // --- Geospatial coordinate core (step 2): LLA -> ECEF -> local ENU ---
@@ -267,8 +292,7 @@ int main() {
           "geo: LLA(%.4f, %.4f, %.1f) -> ECEF(%.3f, %.3f, %.3f); "
           "+100 m east -> LLA(%.6f, %.6f, %.3f)\n",
           spawn.latDeg, spawn.lonDeg, spawn.altM, spawnEcef.x, spawnEcef.y,
-          spawnEcef.z, east100Lla.latDeg, east100Lla.lonDeg,
-          east100Lla.altM);
+          spawnEcef.z, east100Lla.latDeg, east100Lla.lonDeg, east100Lla.altM);
 
   // --- Cleanup ---
   vkDestroyImageView(device, imageView, nullptr);

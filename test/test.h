@@ -44,8 +44,8 @@ struct Registrar {
 inline void checkFail(const char* expr, const char* file, int line,
                       const std::string& detail = "") {
   ++failureCount();
-  std::fprintf(stderr, "FAIL [%s] %s:%d: %s%s\n", currentCase(), file,
-               line, expr, detail.empty() ? "" : ("  " + detail).c_str());
+  std::fprintf(stderr, "FAIL [%s] %s:%d: %s%s\n", currentCase(), file, line,
+               expr, detail.empty() ? "" : ("  " + detail).c_str());
 }
 
 // Run all registered cases; returns the number of failed checks.
@@ -60,23 +60,23 @@ inline int runAll() {
 
 }  // namespace vpt
 
-#define VP_TEST(name)                                       \
-  static void name();                                       \
-  static ::vpt::Registrar name##_registrar(#name, name);    \
+#define VP_TEST(name)                                    \
+  static void name();                                    \
+  static ::vpt::Registrar name##_registrar(#name, name); \
   static void name()
 
-#define VP_CHECK(cond)                                             \
-  do {                                                             \
-    if (!(cond)) ::vpt::checkFail(#cond, __FILE__, __LINE__);      \
+#define VP_CHECK(cond)                                        \
+  do {                                                        \
+    if (!(cond)) ::vpt::checkFail(#cond, __FILE__, __LINE__); \
   } while (0)
 
-#define VP_CHECK_NEAR(a, b, tol)                                          \
-  do {                                                                    \
-    double va = (a), vb = (b), vt = (tol);                               \
-    if (std::fabs(va - vb) > vt) {                                       \
-      char buf[160];                                                     \
-      std::snprintf(buf, sizeof(buf), "got %.12g, want %.12g (+/- %.3g)", \
-                    va, vb, vt);                                         \
-      ::vpt::checkFail(#a " ~= " #b, __FILE__, __LINE__, buf);          \
-    }                                                                    \
+#define VP_CHECK_NEAR(a, b, tol)                                              \
+  do {                                                                        \
+    double va = (a), vb = (b), vt = (tol);                                    \
+    if (std::fabs(va - vb) > vt) {                                            \
+      char buf[160];                                                          \
+      std::snprintf(buf, sizeof(buf), "got %.12g, want %.12g (+/- %.3g)", va, \
+                    vb, vt);                                                  \
+      ::vpt::checkFail(#a " ~= " #b, __FILE__, __LINE__, buf);                \
+    }                                                                         \
   } while (0)

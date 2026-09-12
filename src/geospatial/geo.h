@@ -42,7 +42,7 @@ using ECEF = glm::dvec3;
 
 // LLA -> ECEF. Closed form, exact for the WGS-84 ellipsoid up to double
 // rounding (~1e-9 m).
-ECEF llaToEcef(const LLA& lla, const Ellipsoid& ell = Ellipsoid::WGS84);
+ECEF llaToEcef(const LLA& in, const Ellipsoid& e = Ellipsoid::WGS84);
 
 // ECEF -> LLA. Exact fixed-point iteration (Bowring's closed-form initial
 // estimate, then p*tan(lat) = z + N*e2*sin(lat) to double precision).
@@ -65,16 +65,16 @@ class LocalFrame {
   explicit LocalFrame(const ECEF& origin);  // origin in ECEF (WGS-84)
   explicit LocalFrame(const LLA& origin);
 
-  ECEF origin() const { return origin_; }
-  const LLA& originLla() const { return originLla_; }
+  [[nodiscard]] ECEF origin() const { return origin_; }
+  [[nodiscard]] const LLA& originLla() const { return originLla_; }
 
   // World -> local (meters, ENU).
-  glm::dvec3 toLocal(const ECEF& p) const;
+  [[nodiscard]] glm::dvec3 toLocal(const ECEF& p) const;
   // Local (meters, ENU) -> world.
-  ECEF toWorld(const glm::dvec3& local) const;
+  [[nodiscard]] ECEF toWorld(const glm::dvec3& local) const;
 
   // Orthonormal basis; columns are the E, N, U unit vectors in ECEF.
-  const glm::dmat3& basis() const { return basis_; }
+  [[nodiscard]] const glm::dmat3& basis() const { return basis_; }
 
  private:
   ECEF origin_;

@@ -4,6 +4,7 @@
 
 #include "geospatial/geo.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace vp::geo {
@@ -28,7 +29,9 @@ double radToDeg(double rad) { return rad * kRadToDeg; }
 // zero decides at exactly +/-180).
 double normalizeLonDeg(double lon) {
   double l = std::fmod(lon + 180.0, 360.0);
-  if (l < 0.0) l += 360.0;
+  if (l < 0.0) {
+    l += 360.0;
+  }
   return l - 180.0;
 }
 
@@ -95,16 +98,15 @@ LLA ecefToLla(const ECEF& p, const Ellipsoid& e) {
 }
 
 LocalFrame::LocalFrame(const ECEF& origin)
-    : origin_(origin), originLla_(ecefToLla(origin)) {
+    : origin_(origin), originLla_(ecefToLla(origin)), basis_() {
   const double lat = degToRad(originLla_.latDeg);
   const double lon = degToRad(originLla_.lonDeg);
   const double sLat = std::sin(lat), cLat = std::cos(lat);
   const double sLon = std::sin(lon), cLon = std::cos(lon);
   // Columns: east, north, up (unit vectors in ECEF).
-  basis_ = glm::dmat3(
-      glm::dvec3(-sLon, cLon, 0.0),
-      glm::dvec3(-sLat * cLon, -sLat * sLon, cLat),
-      glm::dvec3(cLat * cLon, cLat * sLon, sLat));
+  basis_ = glm::dmat3(glm::dvec3(-sLon, cLon, 0.0),
+                      glm::dvec3(-sLat * cLon, -sLat * sLon, cLat),
+                      glm::dvec3(cLat * cLon, cLat * sLon, sLat));
 }
 
 LocalFrame::LocalFrame(const LLA& origin) : LocalFrame(llaToEcef(origin)) {}
@@ -118,9 +120,7 @@ ECEF LocalFrame::toWorld(const glm::dvec3& local) const {
   return origin_ + basis_ * local;
 }
 
-double distanceEcef(const ECEF& a, const ECEF& b) {
-  return glm::length(a - b);
-}
+double distanceEcef(const ECEF& a, const ECEF& b) { return glm::length(a - b); }
 
 glm::dvec3 convertLocal(const LocalFrame& from, const LocalFrame& to,
                         const glm::dvec3& local) {
