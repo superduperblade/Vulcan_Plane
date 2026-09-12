@@ -8,7 +8,7 @@
   ninja, make, python) as part of building and verifying the project.
 - Do not run executables unrelated to the project or its build/test
   toolchain.
-- Model files (weights, datasets, reference material) may be used freely;
+- Model files (weights, datasets, reference material,3d objects) may be used freely;
   they are not executables.
 
 ## 1. Purpose
