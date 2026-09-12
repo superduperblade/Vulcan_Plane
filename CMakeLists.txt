@@ -16,10 +16,9 @@ set(REF_REPOS "/root/.pi/agent/docs-search/repos" CACHE PATH
 # VMA (header-only in 3.x: INTERFACE library)
 add_subdirectory(${REF_REPOS}/vma ${CMAKE_BINARY_DIR}/vma EXCLUDE_FROM_ALL)
 
-# Geospatial coordinate core (WGS-84: LLA <-> ECEF, local ENU frames).
-# Pure CPU (glm only, no Vulkan). See docs/decisions/0001 and
-# docs/PRECISION.md.
-add_library(vp_geo STATIC src/geospatial/geo.cpp)
+# Geospatial coordinate core (WGS-84: LLA <-> ECEF, local ENU frames,
+# world cell addressing per decision 0002). Pure CPU (glm only, no Vulkan).
+add_library(vp_geo STATIC src/geospatial/geo.cpp src/geospatial/cells.cpp)
 target_include_directories(vp_geo PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${REF_REPOS}/glm)
@@ -42,7 +41,7 @@ endif()
 option(BUILD_TESTS "Build unit tests" ON)
 if(BUILD_TESTS)
   enable_testing()
-  add_executable(vp_geo_tests test/geo_test.cpp)
+  add_executable(vp_geo_tests test/geo_test.cpp test/cells_test.cpp)
   target_link_libraries(vp_geo_tests PRIVATE vp_geo)
   add_test(NAME geo_tests COMMAND vp_geo_tests)
 endif()

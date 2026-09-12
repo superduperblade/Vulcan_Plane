@@ -92,7 +92,7 @@ int main() {
     vkGetPhysicalDeviceQueueFamilyProperties(d, &n, nullptr);
     std::vector<VkQueueFamilyProperties> qf(n);
     vkGetPhysicalDeviceQueueFamilyProperties(d, &n, qf.data());
-    for (uint32_t i = 0; i < n && phys != VK_NULL_HANDLE; i++) {
+    for (uint32_t i = 0; i < n && phys == VK_NULL_HANDLE; i++) {
       // i is bounded by the driver-reported queue family count n.
       // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
       if ((qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {

@@ -6,60 +6,73 @@
 
 ## Just Finished
 
-- Tooling pass (uncommitted work from the previous session, completed and
-  verified):
-  - Formatting: `.clang-format` (Google style), whole codebase reformatted.
-  - Static analysis: `.clang-tidy` baseline with reasoned disables (the
-    test harness's macros, printf diagnostics, and deliberate patterns are
-    documented in the file). Project code is at **0 warnings**.
-  - Tidy fixes: `[[nodiscard]]` on `LocalFrame` accessors, Vulkan handle
-    initialization, explicit bool conversions, brace hygiene, targeted
-    NOLINTs with reasons (fixed callback vtable signatures, deterministic
-    test seeds).
-  - `src/vma_impl.cpp`: VMA implementation moved out of `main.cpp` into its
-    own TU (not analyzed by clang-tidy), CMake updated.
-  - Host build support: `REF_REPOS`/`VULKAN_INCLUDE_DIR` are CMake cache
-    options; refs live in `~/Documents/code/agents/ref_repos`
-    (vma→VulkanMemoryAllocator symlink, glm, Vulkan-Headers). See
-    CONVENTIONS.md (also documents the broken system cmake workaround:
-    pip-installed cmake in `~/.local/bin`).
-  - Portability fix: `std::clamp` in geo.cpp needed `<algorithm>` (newer
-    g++ does not pull it transitively).
-  - Verified on the host: build clean, 12/12 geo tests pass, clang-format
-    clean, clang-tidy 0 warnings, and `vp_core` runs end-to-end on real
-    hardware (NVIDIA RTX 4060 — not lavapipe; validation layer not
-    installed on the host, instance reports it off).
+- Step 3: world-coordinate model — complete.
+  - Decision recorded: `docs/decisions/0002-world-cell-addressing.md` —
+    global geodetic quadtree (OGC WorldCRS84Quad layout: level L =
+    2^(L+1) x 2^L cells; level 0 = two hemispheres; north-first rows;
+    longitude [west, east) / latitude (south, north] from a shared
+    north/west floor rule; +180 ≡ −180 → x = 0; poles clamped into edge
+    rows). Alternatives rejected: web-mercator (no addresses beyond
+    ±85°), cube-sphere, HEALPix, icosahedral DGGS, flat ECEF grid.
+  - Implementation: `src/geospatial/cells.{h,cpp}` (`vp::geo`, in
+    `vp_geo`): packed `CellId` (level:6|x:26|y:25, kMaxCellLevel 25 ≈
+    0.6 m), `cellOf(LLA|ECEF, level)` (pure function of canonical
+    position; ECEF via `ecefToLla`), `bounds`, `extentMeters` (width =
+    mid-latitude parallel arc, height = exact meridional arc —
+    sub-mm vs canonical geodesy), `contains`, `parent`/`children`/
+    `ancestorAtLevel`, `neighbor` (dateline wrap, pole clamp),
+    `acrossPole`.
+  - Tests: `test/cells_test.cpp` — 14 cases: layout constants, packing
+    round-trips/validation, pinned root/edge/pole addresses, ECEF≡LLA
+    addressing, containment/half-open edges, dateline wrap,
+    across-pole adjacency, parent/children/level-consistency
+    (`ancestorAtLevel(cellOf(p,L),L') == cellOf(p,L')`) over grids +
+    seeded random points, neighbor adjacency, ellipsoidal extents,
+    frame-independence across re-anchoring. All 26 cases (12 geo + 14
+    cells) pass.
+  - Tooling regression caught and fixed during integration: the clang-
+    tidy pass had inverted the physical-device selection loop condition
+    (`!phys` → `phys != VK_NULL_HANDLE` instead of `==`), which made
+    `vp_core` fail at runtime despite clean builds/tests — caught by
+    the integration smoke run on the RTX 4060, fixed, and vp_core now
+    completes end-to-end on real hardware.
+  - Host build environment documented in CONVENTIONS.md (REF_REPOS/
+    VULKAN_INCLUDE_DIR options, refs in `~/Documents/code/agents/
+    ref_repos`, pip cmake workaround, sandbox `env -u APPIMAGE -u
+    APPDIR` quirk for direct compiler invocation).
 
 ## In Progress
 
-- Step 3: world-coordinate model. Decision recorded:
-  `docs/decisions/0002-world-cell-addressing.md` — global geodetic
-  quadtree (OGC WorldCRS84Quad layout: level L = 2^(L+1) x 2^L cells,
-  2 hemisphere roots, north-first rows, half-open containment, dateline
-  wrap; packed uint64 CellId, kMaxCellLevel 25). Implementation of
-  `src/geospatial/cells.{h,cpp}` + `test/cells_test.cpp` starting.
+Nothing in flight — step 3 is complete and verified.
 
 ## Performance
 
-No meaningful measurements yet. Container renders via lavapipe (software);
-the HOST has a real GPU (RTX 4060) — use the host for anything
-timing-related. See `PERFORMANCE.md`. Coordinate math is pure CPU;
-its test budgets are absolute.
+No meaningful measurements yet. The HOST has a real GPU (RTX 4060) —
+use it for anything timing-related; the dev container is lavapipe
+(software). See `PERFORMANCE.md`. Coordinate and cell math are pure CPU;
+`cellOf(ECEF)` costs ecefToLla (~100–200 ns) + O(1) integer work —
+streaming-decision rates, never per-vertex (per decision 0002).
 
 ## Known Issues
 
 - `vp_windowed` has not been built/run (no display configured).
-- Host has no Vulkan validation layer installed (instance reports it off);
-  container runs still have it.
-- Geodetic altitude is ellipsoidal (WGS-84), not mean sea level; MSL data
-  needs a geoid model (EGM2008) at the ingestion boundary (later step).
+- Host has no Vulkan validation layer installed (instance reports it
+  off); container runs have it.
+- Geodetic altitude is ellipsoidal (WGS-84), not mean sea level; MSL
+  data needs a geoid model (EGM2008) at the ingestion boundary (later
+  step).
 - System cmake/ctest on the host are broken (stale libjsoncpp); use the
-  pip-installed cmake (`~/.local/bin/cmake`) — see CONVENTIONS.md.
+  pip-installed cmake — see CONVENTIONS.md.
+- Terrain rendering near the poles must handle degenerate patches
+  (addressing is total; patch construction is a terrain-design concern
+  for step 5).
 
 ## Next Step
 
-Finish step 3: implement `src/geospatial/cells.{h,cpp}` and
-`test/cells_test.cpp` per decision 0002 (addressing, bounds, extent,
-hierarchy, neighbors — no streaming/caching), wire into `vp_geo` and the
-test target, verify (build + tests + clang-format + clang-tidy 0
-warnings), update GOALS/ARCHITECTURE/WORLD docs, commit.
+Step 4: basic world representation — a world state layer on top of the
+cell addressing: cells as containers of content (terrain/biome handles),
+the world-state store keyed by ECEF/CellId, and the minimal runtime glue
+(vp_core main loop restructure) that streaming (step 7) will extend.
+Design the content-data boundary so terrain generation (step 5) can be
+added without rework, per agents.md (terrain pipeline independent of the
+renderer).

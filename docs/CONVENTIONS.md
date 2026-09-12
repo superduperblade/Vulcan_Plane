@@ -26,6 +26,12 @@ or call the wheel's binaries directly under
 `~/.local/lib/python3.14/site-packages/cmake/data/bin/`. Ninja and the
 compilers are system-installed and fine.
 
+Note (agent sandbox shells): invoking `g++`/`clang++` directly inside the
+ZCode shell can fail (`cannot execute 'cc1plus'`) because the AppImage
+environment hijacks the toolchain lookup; prefix with
+`env -u APPIMAGE -u APPDIR` in that case. Builds through ninja/cmake are
+unaffected.
+
 Or use the `cpp_build` tool (auto-detects CMake+Ninja, saves full logs).
 
 ## VS Code

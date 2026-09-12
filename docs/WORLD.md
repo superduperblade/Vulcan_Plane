@@ -42,10 +42,37 @@ The render frame origin follows the camera:
 **Precision contract:** [`docs/PRECISION.md`](PRECISION.md) is the contract
 every downstream system (terrain, streaming, LOD, camera) codes against.
 
+## Cell Addressing (step 3 — implemented)
+
+The world is partitioned by the **global geodetic quadtree** decided in
+[`decisions/0002-world-cell-addressing.md`](decisions/0002-world-cell-addressing.md)
+and implemented in `src/geospatial/cells.{h,cpp}` (`vp::geo`, same `vp_geo`
+library): level L has 2^(L+1) longitude cells × 2^L latitude cells, level 0
+being two hemisphere cells — the exact layout of the OGC WorldCRS84Quad /
+TMS global-geodetic / Cesium GeographicTilingScheme families, so standard
+geodata tiles map 1:1 onto engine cells.
+
+- `CellId` — packed uint64 (level:6 | x:26 | y:25), `kMaxCellLevel = 25`
+  (~0.6 m cells). A derived index for streaming/LOD/spatial partitioning —
+  never a second coordinate system; altitude is content, not address.
+- `cellOf(LLA|ECEF, level)` — pure function of the canonical position
+  (ECEF goes through `ecefToLla`, ~100–200 ns: streaming-decision rates,
+  never per-vertex).
+- `bounds`, `extentMeters` (width at mid-latitude, height as the exact
+  meridional arc — sizing must use meters, cells are not equal-area),
+  `contains`, `parent`/`children`/`ancestorAtLevel`, `neighbor` (dateline
+  wrap, pole clamp), `acrossPole`.
+- Conventions (pinned, tested): y = 0 is the north pole row; longitude
+  intervals [west, east), latitude intervals (south, north] (shared floor
+  rule from the north/west corner); +180 ≡ −180 → x = 0.
+- Ingest mapping: geodetic rasters (SRTM 1° tiles) resample directly;
+  Web-Mercator tile sets enter through an inverse-Mercator converter at
+  the future ingestion boundary (step 9).
+
 ## Terrain Model
 
-Not yet designed. Step 3 (world-coordinate model: tile/cell addressing and
-spatial partitioning on top of the coordinate foundation) is next.
+Not yet designed. Will consume cells for spatial partitioning (next steps:
+basic world representation, then terrain).
 
 ## Biome Model
 
@@ -53,8 +80,11 @@ Not yet designed.
 
 ## Tile Hierarchy
 
-Not yet designed. Tile addressing will be frame-independent (see decision
-0001: integer tile addressing is deferred to step 3).
+The cell hierarchy IS the tile hierarchy: 4 children per cell at every
+level (NW/NE/SW/SE), `ancestorAtLevel(cellOf(p, L), L') == cellOf(p, L')`
+guarantees level-independent addressing decisions (the core property,
+tested). Above the two level-0 hemispheres a single conceptual root can be
+layered later without changing addressing (decision 0002).
 
 ## Streaming, LOD
 

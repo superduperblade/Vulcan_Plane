@@ -10,8 +10,9 @@ geographic coordinate systems, and a basic world representation.
 - Core application/runtime (window, main loop, basic Vulkan render target) — done (step 1)
 - Math and geographic coordinate systems — done (step 2: `vp_geo`, decision
   0001, precision contract in `docs/PRECISION.md`)
-- World-coordinate model (tile/cell addressing, spatial partitioning) — next
-- Basic world/terrain representation
+- World-coordinate model (tile/cell addressing, spatial partitioning) —
+  done (step 3: geodetic quadtree `cells`, decision 0002)
+- Basic world/terrain representation — next
 - Walkable / flyable player movement
 
 ## Longer-Term
